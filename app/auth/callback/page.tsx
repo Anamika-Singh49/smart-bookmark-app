@@ -8,24 +8,15 @@ export default function AuthCallback() {
   const router = useRouter();
 
   useEffect(() => {
-    const exchangeCode = async () => {
-      const { error } = await supabase.auth.exchangeCodeForSession(
-        window.location.href
-      );
-
-      if (error) {
-        console.error("OAuth error:", error);
-      }
-
-      router.replace("/");
-    };
-
-    exchangeCode();
+    supabase.auth
+      .exchangeCodeForSession(window.location.href)
+      .then(({ error }) => {
+        if (error) {
+          console.error("OAuth error:", error.message);
+        }
+        router.replace("/dashboard");
+      });
   }, [router]);
 
-  return (
-    <p style={{ textAlign: "center", marginTop: "100px" }}>
-      Logging you in...
-    </p>
-  );
+  return <p>Logging you in...</p>;
 }
