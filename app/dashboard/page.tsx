@@ -11,44 +11,48 @@ type Bookmark = {
 
 export default function Dashboard() {
   const router = useRouter();
-
-  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [url, setUrl] = useState("");
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  // ✅ Check login + load bookmarks
+  // 🔐 auth check
   useEffect(() => {
-    const init = async () => {
-      const { data } = await supabase.auth.getUser();
-
+    supabase.auth.getUser().then(({ data }) => {
       if (!data.user) {
         router.replace("/");
-        return;
+      } else {
+        setLoading(false);
+        fetchBookmarks();
       }
+    });
+  }, []);
 
-      setUser(data.user);
-      await fetchBookmarks(data.user.id);
-      setLoading(false);
-    };
+  // 📥 fetch bookmarks
+  const fetchBookmarks = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-    init();
-  }, [router]);
+    if (!user) return;
 
-  // ✅ Fetch bookmarks
-  const fetchBookmarks = async (userId: string) => {
     const { data } = await supabase
       .from("bookmarks")
-      .select("id, url")
-      .eq("user_id", userId)
+      .select("*")
+      .eq("user_id", user.id)
       .order("created_at", { ascending: false });
 
     setBookmarks(data || []);
   };
 
-  // ✅ Add bookmark
+  // ➕ add bookmark
   const addBookmark = async () => {
-    if (!url.trim()) return;
+    if (!url) return;
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return;
 
     await supabase.from("bookmarks").insert({
       url,
@@ -56,67 +60,56 @@ export default function Dashboard() {
     });
 
     setUrl("");
-    fetchBookmarks(user.id);
+    fetchBookmarks();
   };
 
-  // ✅ Delete bookmark
+  // ❌ delete bookmark
   const deleteBookmark = async (id: string) => {
     await supabase.from("bookmarks").delete().eq("id", id);
-    fetchBookmarks(user.id);
+    fetchBookmarks();
   };
 
-  // ✅ Logout
+  // 🚪 logout
   const logout = async () => {
     await supabase.auth.signOut();
-    router.push("/");
+    router.replace("/");
   };
 
   if (loading) return <p>Loading...</p>;
 
   return (
-    <main style={{ padding: "20px" }}>
-      <h2>Welcome 👋</h2>
+    <main style={{ padding: "30px" }}>
+      <h1>Welcome 👋</h1>
 
       <button onClick={logout}>Logout</button>
 
-      <br /><br />
+      <div style={{ marginTop: "20px" }}>
+        <input
+          placeholder="Paste bookmark URL"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+        />
+        <button onClick={addBookmark}>Add Bookmark</button>
+      </div>
 
-      {/* Add bookmark */}
-      <input
-        type="text"
-        placeholder="Paste bookmark URL"
-        value={url}
-        onChange={(e) => setUrl(e.target.value)}
-      />
-      <button onClick={addBookmark}>Add Bookmark</button>
+      <ul style={{ marginTop: "20px" }}>
+        {bookmarks.length === 0 && <p>No bookmarks yet</p>}
 
-      <br /><br />
+        {bookmarks.map((b) => (
+          <li key={b.id}>
+            <a href={b.url} target="_blank">
+              {b.url}
+            </a>
 
-      {/* Bookmark list */}
-      {bookmarks.length === 0 ? (
-        <p>No bookmarks yet</p>
-      ) : (
-        <ul>
-          {bookmarks.map((bookmark) => (
-            <li key={bookmark.id}>
-              <a
-                href={bookmark.url}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                {bookmark.url}
-              </a>
-
-              <button
-                style={{ marginLeft: "10px" }}
-                onClick={() => deleteBookmark(bookmark.id)}
-              >
-                ❌
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+            <button
+              onClick={() => deleteBookmark(b.id)}
+              style={{ marginLeft: "10px", color: "red" }}
+            >
+              ❌
+            </button>
+          </li>
+        ))}
+      </ul>
     </main>
   );
 }
